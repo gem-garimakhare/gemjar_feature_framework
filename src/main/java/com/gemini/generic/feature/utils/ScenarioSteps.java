@@ -9,8 +9,14 @@ import com.gemini.generic.ui.utils.DriverAction;
 import io.cucumber.docstring.DocString;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
+import org.apache.commons.validator.routines.UrlValidator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
 
 public class ScenarioSteps implements FeatureFrameWorkConstants {
 
@@ -115,16 +121,36 @@ public class ScenarioSteps implements FeatureFrameWorkConstants {
     @Given("^requestBody\\h(.+)")
     public void setRequestBody(String requestBody) {
         try {
-            if(requestBody.startsWith("#(") && requestBody.endsWith(")"))
-                requestBody=ValueFixer.fixValue(this.variables.getCurrentMap(), requestBody);
-            if(requestBody.contains("readFile")){
+            if(requestBody.startsWith("#(") && requestBody.endsWith(")")) {
+                requestBody = ValueFixer.fixValue(this.variables.getCurrentMap(), requestBody);
+                request.setRequestPayload(requestBody);
+                GemTestReporter.addTestStep("Set request body", "Request Body : " + requestBody + "\n Header Value : " + request.getHeaderMap(), STATUS.INFO);
+            }
+            if(requestBody.contains("readFile")) {
                 String filePath = requestBody.substring(requestBody.indexOf("(") + 1, requestBody.lastIndexOf(")"));
-                String payload = ValueFixer.readFile(filePath);
-                request.setRequestPayload(payload);
-                GemTestReporter.addTestStep("Set request body", "Request Body : " + payload + "\n Header Value : " +request.getHeaderMap(), STATUS.INFO);
+                UrlValidator validator = new UrlValidator();
+                if (validator.isValid(filePath)) {
+                    StringBuilder payload = new StringBuilder();
+                    URL url = new URL(filePath);
+                    URLConnection urlConnection = url.openConnection();
+                    BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
+                    String line;
+                    // reading from the urlconnection using the bufferedreader
+                    while ((line = bufferedReader.readLine()) != null) {
+                        payload.append(line + "\n");
+                    }
+                    bufferedReader.close();
+                    request.setRequestPayload(payload.toString());
+
+                    GemTestReporter.addTestStep("Set request body", "Request Body : " + payload + "\n Header Value : " + request.getHeaderMap(), STATUS.INFO);
+                } else {
+                    String payload = ValueFixer.readFile(filePath);
+                    request.setRequestPayload(payload);
+                    GemTestReporter.addTestStep("Set request body", "Request Body : " + payload + "\n Header Value : " + request.getHeaderMap(), STATUS.INFO);
+                }
             }
             else{
-            request.setRequestPayload(requestBody);
+                request.setRequestPayload(requestBody);
                 GemTestReporter.addTestStep("Set request body", "Request Body : " + requestBody + "\n Header Value : " + request.getHeaderMap(), STATUS.INFO);
             }
         } catch (Exception e) {
